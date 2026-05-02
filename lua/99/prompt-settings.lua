@@ -1,7 +1,14 @@
----@param buffer number
+---@param range _99.Range
+---@param n number lines of context above and below the selection
 ---@return string
-local function get_file_contents(buffer)
-  local lines = vim.api.nvim_buf_get_lines(buffer, 0, -1, false)
+local function get_surrounding_context(range, n)
+  local start_row, _ = range.start:to_vim()
+  local end_row, _ = range.end_:to_vim()
+  local line_count = vim.api.nvim_buf_line_count(range.buffer)
+  local from = math.max(start_row - n, 0)
+  local to = math.min(end_row + 1 + n, line_count)
+  local lines = vim.api.nvim_buf_get_lines(range.buffer, from, to, false)
+
   return table.concat(lines, "\n")
 end
 
@@ -148,13 +155,13 @@ consider the context of the selection and what you are suppose to be implementin
 <SELECTION_CONTENT>
 %s
 </SELECTION_CONTENT>
-<FILE_CONTAINING_SELECTION>
+<SURROUNDING_CONTEXT>
 %s
-</FILE_CONTAINING_SELECTION>
+</SURROUNDING_CONTEXT>
 ]],
       range:to_string(),
       range:to_text(),
-      get_file_contents(range.buffer)
+      get_surrounding_context(range, 100)
     )
   end,
   read_tmp = function()
