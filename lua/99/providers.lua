@@ -119,7 +119,7 @@ function BaseProvider:make_request(query, context, observer)
           string.format("process exit code: %d\n%s", obj.code, vim.inspect(obj))
         once_complete("failed", str)
         logger:fatal(
-          self:_get_provider_name() .. " make_query failed",
+          self:_get_provider_name() .. " make_query failed: " .. str,
           "obj from results",
           obj
         )
@@ -235,7 +235,16 @@ local CursorAgentProvider = setmetatable({}, { __index = BaseProvider })
 --- @param context _99.Prompt
 --- @return string[]
 function CursorAgentProvider._build_command(_, query, context)
-  return { "cursor-agent", "--model", context.model, "--print", query }
+  -- TODO: trust is sort of a hack and should probably be removed in favor of having a
+  -- trust flag from the setup call
+  return {
+    "cursor-agent",
+    "--trust",
+    "--model",
+    context.model,
+    "--print",
+    query,
+  }
 end
 
 --- @return string
