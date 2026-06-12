@@ -239,7 +239,8 @@ function CursorAgentProvider._build_command(_, query, context)
   -- trust flag from the setup call
   return {
     "cursor-agent",
-    "--trust",
+    "--trust", -- directories are always trusted and can be ran in
+    "--force", -- allows for commands to run
     "--model",
     context.model,
     "--print",
