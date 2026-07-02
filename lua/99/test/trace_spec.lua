@@ -164,23 +164,26 @@ describe("trace", function()
       }, context:trace_lines(10))
     end)
 
-    it("stops coalescing when a non-text event interrupts the stream", function()
-      local p, context = visual_setup(2, 1, 2, 23)
+    it(
+      "stops coalescing when a non-text event interrupts the stream",
+      function()
+        local p, context = visual_setup(2, 1, 2, 23)
 
-      p:emit({ type = "text", text = "before" })
-      p:emit({
-        type = "tool_call",
-        tool = { name = "grep", status = "started" },
-      })
-      p:emit({ type = "text", text = "after" })
+        p:emit({ type = "text", text = "before" })
+        p:emit({
+          type = "tool_call",
+          tool = { name = "grep", status = "started" },
+        })
+        p:emit({ type = "text", text = "after" })
 
-      eq({
-        "> started",
-        "before",
-        "⚒ grep",
-        "after",
-      }, context:trace_lines(10))
-    end)
+        eq({
+          "> started",
+          "before",
+          "⚒ grep",
+          "after",
+        }, context:trace_lines(10))
+      end
+    )
 
     it("clips the live streaming line to 80 characters", function()
       local p, context = visual_setup(2, 1, 2, 23)

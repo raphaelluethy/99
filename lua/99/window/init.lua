@@ -599,16 +599,17 @@ function M.status_window()
   return window
 end
 
---- The widest the status window may grow. Streaming agent traces get half
---- the editor width; the plain status view keeps the original third.
+--- The widest the status window may grow. Streaming agent traces get double
+--- the plain status width; the plain status view keeps the original third.
 --- @param wide boolean | nil
 --- @return number
 function M.status_window_max_width(wide)
   local width, _ = get_ui_dimensions()
+  local base = math.floor(width / 3)
   if wide then
-    return math.floor(width / 2)
+    return base * 2
   end
-  return math.floor(width / 3)
+  return base
 end
 
 --- @param win _99.window.Window

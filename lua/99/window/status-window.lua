@@ -22,6 +22,20 @@ local Throbber = require("99.ops.throbber")
 --- defaults to true
 --- @field agent_trace _99.StatusWindow.AgentTraceOpts | nil
 
+--- @param line string
+--- @param width number
+--- @return string
+local function truncate_line(line, width)
+  if vim.fn.strdisplaywidth(line) <= width then
+    return line
+  end
+  line = vim.fn.strcharpart(line, 0, width)
+  while vim.fn.strdisplaywidth(line) > width do
+    line = vim.fn.strcharpart(line, 0, vim.fn.strchars(line) - 1)
+  end
+  return line
+end
+
 --- @param agent_trace _99.StatusWindow.AgentTraceOpts | nil
 --- @return _99.StatusWindow.AgentTraceOpts
 local function default_agent_trace_opts(agent_trace)
@@ -140,11 +154,10 @@ function StatusWindow:_run_loop()
       end
 
       if agent_trace.enable then
-        local width = 0
-        for _, line in ipairs(lines) do
-          width = math.max(width, vim.fn.strdisplaywidth(line))
+        local width = Window.status_window_max_width(true)
+        for i, line in ipairs(lines) do
+          lines[i] = truncate_line(line, width)
         end
-        width = math.min(width, Window.status_window_max_width(true))
         Window.resize(win, width, #lines)
       else
         Window.resize(win, #lines[1], #lines)
