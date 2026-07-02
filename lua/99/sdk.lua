@@ -93,27 +93,31 @@ function M.ensure_installed(cb)
   end
   install_in_flight = true
 
-  vim.system({
-    "npm",
-    "install",
-    "--omit=dev",
-    "--no-audit",
-    "--no-fund",
-  }, {
-    cwd = M.runner_dir(),
-    text = true,
-  }, function(obj)
-    if obj.code ~= 0 then
-      finish_install(false, obj.stderr or "npm install failed")
-      return
-    end
+  vim.system(
+    {
+      "npm",
+      "install",
+      "--omit=dev",
+      "--no-audit",
+      "--no-fund",
+    },
+    {
+      cwd = M.runner_dir(),
+      text = true,
+    },
+    vim.schedule_wrap(function(obj)
+      if obj.code ~= 0 then
+        finish_install(false, obj.stderr or "npm install failed")
+        return
+      end
 
-    local package_path = M.runner_dir() .. "/package.json"
-    local package_json = table.concat(vim.fn.readfile(package_path), "\n")
-    local stamp = vim.fn.sha256(package_json)
-    vim.fn.writefile({ stamp }, M.runner_dir() .. "/node_modules/.99-stamp")
-    finish_install(true)
-  end)
+      local package_path = M.runner_dir() .. "/package.json"
+      local package_json = table.concat(vim.fn.readfile(package_path), "\n")
+      local stamp = vim.fn.sha256(package_json)
+      vim.fn.writefile({ stamp }, M.runner_dir() .. "/node_modules/.99-stamp")
+      finish_install(true)
+    end)
+  )
 end
 
 return M
