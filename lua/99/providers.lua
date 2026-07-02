@@ -1,8 +1,21 @@
+--- @alias _99.Providers.EventType "start" | "text" | "thinking" | "tool_call" | "status" | "usage" | "complete"
+--- @class _99.Providers.EventTool
+--- @field name string
+--- @field status "started" | "completed"
+--- @field detail? string
+--- @class _99.Providers.Event
+--- @field type _99.Providers.EventType
+--- @field text? string
+--- @field tool? _99.Providers.EventTool
+--- @field status? _99.Prompt.EndingState
+--- @field result? string
+
 --- @class _99.Providers.Observer
 --- @field on_stdout fun(line: string): nil
 --- @field on_stderr fun(line: string): nil
 --- @field on_complete fun(status: _99.Prompt.EndingState, res: string): nil
 --- @field on_start fun(): nil
+--- @field on_event fun(event: _99.Providers.Event): nil
 
 --- @param fn fun(...: any): nil
 --- @return fun(...: any): nil
@@ -64,6 +77,9 @@ end
 --- @param observer _99.Providers.Observer
 function BaseProvider:make_request(query, context, observer)
   observer.on_start()
+  if observer.on_event then
+    observer.on_event({ type = "start" })
+  end
 
   local logger = context.logger:set_area(self:_get_provider_name())
   logger:debug("make_request", "tmp_file", context.tmp_file)
@@ -73,6 +89,13 @@ function BaseProvider:make_request(query, context, observer)
     ---@param text string
     function(status, text)
       observer.on_complete(status, text)
+      if observer.on_event then
+        observer.on_event({
+          type = "complete",
+          status = status,
+          result = text,
+        })
+      end
     end
   )
 
@@ -102,6 +125,9 @@ function BaseProvider:make_request(query, context, observer)
         if not err and data then
           table.insert(stdout_chunks, data)
           observer.on_stdout(data)
+          if observer.on_event then
+            observer.on_event({ type = "text", text = data })
+          end
         end
       end),
       stderr = vim.schedule_wrap(function(err, data)

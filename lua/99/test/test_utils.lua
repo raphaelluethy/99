@@ -7,6 +7,7 @@ local DevNullObserver = {
   on_complete = function() end,
   on_stderr = function() end,
   on_stdout = function() end,
+  on_event = function() end,
 }
 
 function M.next_frame()
@@ -46,6 +47,9 @@ function TestProvider:make_request(query, prompt, observer)
 
   observer = observer or DevNullObserver
   observer.on_start()
+  if observer.on_event then
+    observer.on_event({ type = "start" })
+  end
 
   self.request = {
     query = query,
@@ -62,11 +66,33 @@ function TestProvider:resolve(status, result)
 
   if self.request.prompt:is_cancelled() then
     self.request.observer.on_complete("cancelled", result)
+    if self.request.observer.on_event then
+      self.request.observer.on_event({
+        type = "complete",
+        status = "cancelled",
+        result = result,
+      })
+    end
   else
     self.request.observer.on_complete(status, result)
+    if self.request.observer.on_event then
+      self.request.observer.on_event({
+        type = "complete",
+        status = status,
+        result = result,
+      })
+    end
   end
 
   self.request = nil
+end
+
+--- @param event _99.Providers.Event
+function TestProvider:emit(event)
+  assert(self.request, "you cannot call emit until make_request is called")
+  if self.request.observer.on_event then
+    self.request.observer.on_event(event)
+  end
 end
 
 --- @param line string

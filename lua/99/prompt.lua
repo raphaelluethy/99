@@ -1,5 +1,6 @@
 local BaseProvider = require("99.providers")
 local Logger = require("99.logger.logger")
+local Trace = require("99.trace")
 local utils = require("99.utils")
 local random_file = utils.random_file
 local copy = utils.copy
@@ -69,6 +70,7 @@ local filetype_map = {
 --- @field logger _99.Logger
 --- @field xid number
 --- @field clean_ups (fun(): nil)[]
+--- @field trace string[]
 --- @field _99 _99.State
 ---@diagnostic disable-next-line: undefined-doc-name
 --- @field _proc vim.SystemObj?
@@ -100,6 +102,7 @@ local function set_defaults(context, _99)
   context.full_path = full_path
   context.marks = {}
   context.started_at = Time.now()
+  context.trace = {}
 end
 
 --- TODO: Work item for "TODO implementation"
@@ -234,6 +237,33 @@ function Prompt.search(_99)
   return context
 end
 
+--- @param line string
+function Prompt:push_trace(line)
+  local trace = self.trace
+  if #trace > 0 and trace[#trace] == line then
+    return
+  end
+  table.insert(trace, line)
+  if #trace > 50 then
+    table.remove(trace, 1)
+  end
+end
+
+--- @param n number
+--- @return string[]
+function Prompt:trace_lines(n)
+  local trace = self.trace
+  local count = #trace
+  if count <= n then
+    return vim.deepcopy(trace)
+  end
+  local lines = {}
+  for i = count - n + 1, count do
+    table.insert(lines, trace[i])
+  end
+  return lines
+end
+
 --- @param obs _99.Providers.Observer | nil
 function Prompt:_observer(obs)
   return {
@@ -259,6 +289,15 @@ function Prompt:_observer(obs)
     on_stdout = function(line)
       if obs then
         obs.on_stdout(line)
+      end
+    end,
+    on_event = function(event)
+      local line = Trace.format(event)
+      if line then
+        self:push_trace(line)
+      end
+      if obs and obs.on_event then
+        obs.on_event(event)
       end
     end,
   }
