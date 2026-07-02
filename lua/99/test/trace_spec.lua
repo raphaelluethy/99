@@ -121,6 +121,7 @@ describe("trace", function()
       eq({
         "> started",
         "first line",
+        "second line",
         "⚒ grep pattern",
         "✓ grep",
       }, context:trace_lines(10))
@@ -129,10 +130,66 @@ describe("trace", function()
       eq({
         "> started",
         "first line",
+        "second line",
         "⚒ grep pattern",
         "✓ grep",
         "= success",
       }, context:trace_lines(10))
+    end)
+
+    it("coalesces streamed text chunks into a single live line", function()
+      local p, context = visual_setup(2, 1, 2, 23)
+
+      p:emit({ type = "text", text = "Writing" })
+      p:emit({ type = "text", text = " the" })
+      p:emit({ type = "text", text = " Hello World tutorial" })
+
+      eq({
+        "> started",
+        "Writing the Hello World tutorial",
+      }, context:trace_lines(10))
+    end)
+
+    it("finalizes the live line on newline and starts a new one", function()
+      local p, context = visual_setup(2, 1, 2, 23)
+
+      p:emit({ type = "text", text = "first " })
+      p:emit({ type = "text", text = "line\nsec" })
+      p:emit({ type = "text", text = "ond line" })
+
+      eq({
+        "> started",
+        "first line",
+        "second line",
+      }, context:trace_lines(10))
+    end)
+
+    it("stops coalescing when a non-text event interrupts the stream", function()
+      local p, context = visual_setup(2, 1, 2, 23)
+
+      p:emit({ type = "text", text = "before" })
+      p:emit({
+        type = "tool_call",
+        tool = { name = "grep", status = "started" },
+      })
+      p:emit({ type = "text", text = "after" })
+
+      eq({
+        "> started",
+        "before",
+        "⚒ grep",
+        "after",
+      }, context:trace_lines(10))
+    end)
+
+    it("clips the live streaming line to 80 characters", function()
+      local p, context = visual_setup(2, 1, 2, 23)
+
+      p:emit({ type = "text", text = string.rep("x", 60) })
+      p:emit({ type = "text", text = string.rep("y", 60) })
+
+      local lines = context:trace_lines(10)
+      eq(string.rep("x", 60) .. string.rep("y", 20), lines[#lines])
     end)
 
     it("bounds the ring buffer to 50 entries", function()

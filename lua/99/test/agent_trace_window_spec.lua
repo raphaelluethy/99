@@ -126,7 +126,7 @@ describe("agent trace status window", function()
     })
 
     for i = 1, 5 do
-      p:emit({ type = "text", text = "line-" .. i })
+      p:emit({ type = "text", text = "line-" .. i .. "\n" })
     end
 
     eq({

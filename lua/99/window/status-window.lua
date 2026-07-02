@@ -144,7 +144,7 @@ function StatusWindow:_run_loop()
         for _, line in ipairs(lines) do
           width = math.max(width, vim.fn.strdisplaywidth(line))
         end
-        width = math.min(width, win.config.width)
+        width = math.min(width, Window.status_window_max_width(true))
         Window.resize(win, width, #lines)
       else
         Window.resize(win, #lines[1], #lines)

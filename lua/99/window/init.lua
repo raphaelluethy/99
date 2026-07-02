@@ -599,11 +599,23 @@ function M.status_window()
   return window
 end
 
+--- The widest the status window may grow. Streaming agent traces get half
+--- the editor width; the plain status view keeps the original third.
+--- @param wide boolean | nil
+--- @return number
+function M.status_window_max_width(wide)
+  local width, _ = get_ui_dimensions()
+  if wide then
+    return math.floor(width / 2)
+  end
+  return math.floor(width / 3)
+end
+
 --- @param win _99.window.Window
 --- @param width number
 --- @param height number
 function M.resize(win, width, height)
-  if win.config.height == height then
+  if win.config.height == height and win.config.width == width then
     return
   end
   assert(M.is_active_window(win), "you cannot pass in an inactive window")

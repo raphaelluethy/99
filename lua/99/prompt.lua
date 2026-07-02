@@ -71,6 +71,8 @@ local filetype_map = {
 --- @field xid number
 --- @field clean_ups (fun(): nil)[]
 --- @field trace string[]
+--- @field _trace_streaming boolean
+--- @field _trace_text_acc string
 --- @field _99 _99.State
 ---@diagnostic disable-next-line: undefined-doc-name
 --- @field _proc vim.SystemObj?
@@ -103,6 +105,8 @@ local function set_defaults(context, _99)
   context.marks = {}
   context.started_at = Time.now()
   context.trace = {}
+  context._trace_streaming = false
+  context._trace_text_acc = ""
 end
 
 --- TODO: Work item for "TODO implementation"
@@ -239,6 +243,8 @@ end
 
 --- @param line string
 function Prompt:push_trace(line)
+  self._trace_streaming = false
+  self._trace_text_acc = ""
   local trace = self.trace
   if #trace > 0 and trace[#trace] == line then
     return
@@ -247,6 +253,43 @@ function Prompt:push_trace(line)
   if #trace > 50 then
     table.remove(trace, 1)
   end
+end
+
+--- @param line string
+--- @return string
+local function clip_trace_line(line)
+  local trimmed = vim.trim(line)
+  if #trimmed > 80 then
+    return trimmed:sub(1, 80)
+  end
+  return trimmed
+end
+
+--- Streamed text arrives in small chunks; chunks accumulate into a single
+--- live trace line until a newline finalizes it.
+--- @param text string
+function Prompt:push_trace_text(text)
+  if not text or text == "" then
+    return
+  end
+  local acc = (self._trace_streaming and self._trace_text_acc or "") .. text
+  local lines = vim.split(acc, "\n", { plain = true })
+  for i, line in ipairs(lines) do
+    local clipped = clip_trace_line(line)
+    if clipped ~= "" then
+      if self._trace_streaming then
+        self.trace[#self.trace] = clipped
+      else
+        self:push_trace(clipped)
+        self._trace_streaming = true
+      end
+    end
+    if i < #lines then
+      -- a newline completed this line; the next chunk starts a fresh one
+      self._trace_streaming = false
+    end
+  end
+  self._trace_text_acc = self._trace_streaming and lines[#lines] or ""
 end
 
 --- @param n number
@@ -292,9 +335,13 @@ function Prompt:_observer(obs)
       end
     end,
     on_event = function(event)
-      local line = Trace.format(event)
-      if line then
-        self:push_trace(line)
+      if event.type == "text" then
+        self:push_trace_text(event.text)
+      else
+        local line = Trace.format(event)
+        if line then
+          self:push_trace(line)
+        end
       end
       if obs and obs.on_event then
         obs.on_event(event)
