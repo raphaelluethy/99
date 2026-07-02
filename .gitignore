@@ -1,3 +1,4 @@
 tmp
 node_modules/
+sdk-runner/node_modules/
 /.cursor/

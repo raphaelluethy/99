@@ -36,6 +36,34 @@ local function join_chunks(chunks)
   return table.concat(chunks, "")
 end
 
+local Sdk = require("99.sdk")
+local Ndjson = require("99.ndjson")
+
+local CLAUDE_MODELS = {
+  "claude-opus-4-6",
+  "claude-sonnet-4-5",
+  "claude-haiku-4-5",
+  "claude-opus-4-5",
+  "claude-opus-4-1",
+  "claude-sonnet-4-0",
+  "claude-opus-4-0",
+  "claude-3-7-sonnet-latest",
+}
+
+--- @param callback fun(models: string[]|nil, err: string|nil): nil
+local function fetch_opencode_models(callback)
+  vim.system({ "opencode", "models" }, { text = true }, function(obj)
+    vim.schedule(function()
+      if obj.code ~= 0 then
+        callback(nil, "Failed to fetch models from opencode")
+        return
+      end
+      local models = vim.split(obj.stdout, "\n", { trimempty = true })
+      callback(models, nil)
+    end)
+  end)
+end
+
 --- @class _99.Providers.BaseProvider
 --- @field _build_command fun(self: _99.Providers.BaseProvider, query: string, context: _99.Prompt): string[]
 --- @field _get_provider_name fun(self: _99.Providers.BaseProvider): string
@@ -192,6 +220,204 @@ function BaseProvider:make_request(query, context, observer)
   context:_set_process(proc)
 end
 
+--- @class _99.Providers.SdkProvider : _99.Providers.BaseProvider
+--- @field _get_sdk_provider_arg fun(self: _99.Providers.SdkProvider): string
+local SdkProvider = setmetatable({}, { __index = BaseProvider })
+
+--- @param context _99.Prompt
+--- @param cb fun(ok: boolean, err?: string): nil
+function SdkProvider._ensure_ready(_, context, cb)
+  if not Sdk.node_available() then
+    cb(false, "node is not installed; install node >= 18 to use SDK providers")
+    return
+  end
+
+  if Sdk.is_installed() then
+    cb(true)
+    return
+  end
+
+  local auto_install = context._99.sdk.auto_install
+  if auto_install == false then
+    cb(
+      false,
+      "sdk runner not installed; run npm install in "
+        .. Sdk.runner_dir()
+        .. " or enable sdk.auto_install"
+    )
+    return
+  end
+
+  Sdk.ensure_installed(function(ok, err)
+    if ok then
+      cb(true)
+    else
+      cb(false, err or "sdk runner install failed")
+    end
+  end)
+end
+
+--- @param query string
+--- @param context _99.Prompt
+--- @return string[]
+function SdkProvider:_build_command(_, _query, _context)
+  return {
+    "node",
+    Sdk.runner_script(),
+    "--provider",
+    self:_get_sdk_provider_arg(),
+  }
+end
+
+--- @param query string
+--- @param context _99.Prompt
+--- @param observer _99.Providers.Observer
+function SdkProvider:make_request(query, context, observer)
+  observer.on_start()
+  if observer.on_event then
+    observer.on_event({ type = "start" })
+  end
+
+  local logger = context.logger:set_area(self:_get_provider_name())
+  logger:debug("make_request", "tmp_file", context.tmp_file)
+
+  local once_complete = once(
+    --- @param status "success" | "failed" | "cancelled"
+    --- @param text string
+    function(status, text)
+      observer.on_complete(status, text)
+      if observer.on_event then
+        observer.on_event({
+          type = "complete",
+          status = status,
+          result = text,
+        })
+      end
+    end
+  )
+
+  --- @param event table
+  --- @param stashed table|nil
+  --- @return table|nil
+  local function forward_event(event, stashed)
+    if event.type == "complete" then
+      return event
+    end
+    if observer.on_event then
+      observer.on_event(event)
+    end
+    if event.type == "text" and event.text then
+      observer.on_stdout(event.text)
+    end
+    return stashed
+  end
+
+  self:_ensure_ready(context, function(ok, err)
+    if not ok then
+      once_complete("failed", err or "sdk runner not ready")
+      return
+    end
+
+    local command = self:_build_command(query, context)
+    logger:debug("make_request", "command", command)
+
+    local decoder = Ndjson.new()
+    local stderr_chunks = {}
+    --- @type table|nil
+    local stashed_complete = nil
+
+    local proc = vim.system(
+      command,
+      {
+        text = true,
+        stdin = true,
+        stdout = vim.schedule_wrap(function(stream_err, data)
+          logger:debug("stdout", "data", data)
+          if context:is_cancelled() then
+            once_complete("cancelled", "")
+            return
+          end
+          if stream_err and stream_err ~= "" then
+            logger:debug("stdout#error", "err", stream_err)
+          end
+          if not stream_err and data then
+            for _, event in ipairs(decoder:feed(data)) do
+              stashed_complete = forward_event(event, stashed_complete)
+            end
+          end
+        end),
+        stderr = vim.schedule_wrap(function(stream_err, data)
+          logger:debug("stderr", "data", data)
+          if context:is_cancelled() then
+            once_complete("cancelled", "")
+            return
+          end
+          if stream_err and stream_err ~= "" then
+            logger:debug("stderr#error", "err", stream_err)
+          end
+          if not stream_err and data then
+            table.insert(stderr_chunks, data)
+            observer.on_stderr(data)
+          end
+        end),
+      },
+      vim.schedule_wrap(function(obj)
+        if context:is_cancelled() then
+          once_complete("cancelled", "")
+          logger:debug("on_complete: request has been cancelled")
+          return
+        end
+
+        for _, event in ipairs(decoder:flush()) do
+          stashed_complete = forward_event(event, stashed_complete)
+        end
+
+        local ok_tmp, res = self:_retrieve_response(context)
+        if ok_tmp and vim.trim(res) ~= "" then
+          once_complete("success", res)
+          return
+        end
+
+        if stashed_complete then
+          local status = stashed_complete.status == "success" and "success"
+            or "failed"
+          once_complete(status, stashed_complete.result or "")
+          return
+        end
+
+        if obj.code == 0 then
+          once_complete("failed", "runner produced no complete event")
+          return
+        end
+
+        local stderr = join_chunks(stderr_chunks)
+        local str = string.format("process exit code: %d", obj.code)
+        if stderr ~= "" then
+          str = str .. "\nstderr:\n" .. stderr
+        end
+        str = str .. "\n" .. vim.inspect(obj)
+        once_complete("failed", str)
+        logger:error(
+          self:_get_provider_name() .. " make_query failed: " .. str,
+          "obj from results",
+          obj
+        )
+      end)
+    )
+
+    context:_set_process(proc)
+
+    local request_json = vim.json.encode({
+      model = context.model,
+      cwd = vim.uv.cwd(),
+      prompt = query,
+    }) .. "\n"
+    pcall(function()
+      proc:write(request_json)
+    end)
+  end)
+end
+
 --- @class OpenCodeProvider : _99.Providers.BaseProvider
 local OpenCodeProvider = setmetatable({}, { __index = BaseProvider })
 
@@ -221,16 +447,7 @@ function OpenCodeProvider._get_default_model()
 end
 
 function OpenCodeProvider.fetch_models(callback)
-  vim.system({ "opencode", "models" }, { text = true }, function(obj)
-    vim.schedule(function()
-      if obj.code ~= 0 then
-        callback(nil, "Failed to fetch models from opencode")
-        return
-      end
-      local models = vim.split(obj.stdout, "\n", { trimempty = true })
-      callback(models, nil)
-    end)
-  end)
+  fetch_opencode_models(callback)
 end
 
 --- @class ClaudeCodeProvider : _99.Providers.BaseProvider
@@ -266,16 +483,7 @@ end
 -- Until Anthropic adds a CLI command for this, we have to hardcode the list here.
 -- See https://github.com/anthropics/claude-code/issues/12612
 function ClaudeCodeProvider.fetch_models(callback)
-  callback({
-    "claude-opus-4-6",
-    "claude-sonnet-4-5",
-    "claude-haiku-4-5",
-    "claude-opus-4-5",
-    "claude-opus-4-1",
-    "claude-sonnet-4-0",
-    "claude-opus-4-0",
-    "claude-3-7-sonnet-latest",
-  }, nil)
+  callback(CLAUDE_MODELS, nil)
 end
 
 --- @class CursorAgentProvider : _99.Providers.BaseProvider
@@ -389,27 +597,92 @@ function GeminiCLIProvider._get_default_model()
   return "auto"
 end
 
---- @class CursorSdkProvider : _99.Providers.BaseProvider
-local CursorSdkProvider = setmetatable({
-  _selectable = false,
-}, { __index = CursorAgentProvider })
+--- @class ClaudeSdkProvider : _99.Providers.SdkProvider
+local ClaudeSdkProvider = setmetatable({}, { __index = SdkProvider })
 
---- @return string
+function ClaudeSdkProvider._get_sdk_provider_arg()
+  return "claude"
+end
+
+function ClaudeSdkProvider._get_provider_name()
+  return "ClaudeSdkProvider"
+end
+
+function ClaudeSdkProvider._get_default_model()
+  return "claude-sonnet-4-5"
+end
+
+function ClaudeSdkProvider.fetch_models(callback)
+  callback(CLAUDE_MODELS, nil)
+end
+
+--- @class CursorSdkProvider : _99.Providers.SdkProvider
+local CursorSdkProvider = setmetatable({}, { __index = SdkProvider })
+
+function CursorSdkProvider._get_sdk_provider_arg()
+  return "cursor"
+end
+
 function CursorSdkProvider._get_provider_name()
   return "CursorSdkProvider"
 end
 
---- @return string
 function CursorSdkProvider._get_default_model()
   return "composer-2.5"
 end
 
+function CursorSdkProvider.fetch_models(callback)
+  if not Sdk.is_installed() then
+    callback(nil, "sdk runner not installed")
+    return
+  end
+
+  vim.system({
+    "node",
+    Sdk.runner_script(),
+    "--provider",
+    "cursor",
+    "--list-models",
+  }, { text = true }, function(obj)
+    vim.schedule(function()
+      if obj.code ~= 0 then
+        callback(nil, obj.stderr or "Failed to fetch models from cursor sdk")
+        return
+      end
+      local models = vim.split(obj.stdout, "\n", { trimempty = true })
+      callback(models, nil)
+    end)
+  end)
+end
+
+--- @class OpenCodeSdkProvider : _99.Providers.SdkProvider
+local OpenCodeSdkProvider = setmetatable({}, { __index = SdkProvider })
+
+function OpenCodeSdkProvider._get_sdk_provider_arg()
+  return "opencode"
+end
+
+function OpenCodeSdkProvider._get_provider_name()
+  return "OpenCodeSdkProvider"
+end
+
+function OpenCodeSdkProvider._get_default_model()
+  return "opencode/claude-sonnet-4-5"
+end
+
+function OpenCodeSdkProvider.fetch_models(callback)
+  fetch_opencode_models(callback)
+end
+
 return {
   BaseProvider = BaseProvider,
+  SdkProvider = SdkProvider,
   OpenCodeProvider = OpenCodeProvider,
   ClaudeCodeProvider = ClaudeCodeProvider,
+  ClaudeSdkProvider = ClaudeSdkProvider,
   CursorAgentProvider = CursorAgentProvider,
+  CursorSdkProvider = CursorSdkProvider,
+  OpenCodeSdkProvider = OpenCodeSdkProvider,
   KiroProvider = KiroProvider,
   GeminiCLIProvider = GeminiCLIProvider,
-  CursorSdkProvider = CursorSdkProvider,
 }
