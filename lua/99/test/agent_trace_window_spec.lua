@@ -151,6 +151,61 @@ describe("agent trace status window", function()
     finish_request(p)
   end)
 
+  it("keeps a fixed width and truncates long tool call lines", function()
+    local p = visual_setup(2, 1, 2, 23, {
+      in_flight_options = {
+        agent_trace = { enable = true, max_lines = 5 },
+      },
+    })
+
+    p:emit({ type = "text", text = "short\n" })
+    wait_for_status_lines(function(buf_lines)
+      for _, line in ipairs(buf_lines) do
+        if line:match("short") then
+          return true
+        end
+      end
+      return false
+    end)
+
+    local expected_width = Window.status_window_max_width(true)
+    eq(
+      expected_width,
+      vim.api.nvim_win_get_config(Window.active_windows[1].win_id).width
+    )
+
+    p:emit({
+      type = "tool_call",
+      tool = {
+        name = "read",
+        status = "started",
+        detail = string.rep("/very-long-path-segment", 10) .. ".lua",
+      },
+    })
+
+    local lines = wait_for_status_lines(function(buf_lines)
+      for _, line in ipairs(buf_lines) do
+        if line:match("read") then
+          return true
+        end
+      end
+      return false
+    end)
+
+    eq(
+      expected_width,
+      vim.api.nvim_win_get_config(Window.active_windows[1].win_id).width
+    )
+    for _, line in ipairs(lines) do
+      assert(
+        vim.fn.strdisplaywidth(line) <= expected_width,
+        "line overflows window: " .. line
+      )
+    end
+
+    finish_request(p)
+  end)
+
   it("does not show trace lines when disabled", function()
     local p = visual_setup(2, 1, 2, 23, {
       in_flight_options = {
