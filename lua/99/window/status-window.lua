@@ -153,15 +153,11 @@ function StatusWindow:_run_loop()
         end
       end
 
-      if agent_trace.enable then
-        local width = Window.status_window_max_width(true)
-        for i, line in ipairs(lines) do
-          lines[i] = truncate_line(line, width)
-        end
-        Window.resize(win, width, #lines)
-      else
-        Window.resize(win, #lines[1], #lines)
+      local width = Window.status_window_max_width(agent_trace.enable)
+      for i, line in ipairs(lines) do
+        lines[i] = truncate_line(line, width)
       end
+      Window.resize(win, width, #lines)
       vim.api.nvim_buf_set_lines(win.buf_id, 0, -1, false, lines)
     end, self.opts.throbber_opts)
 

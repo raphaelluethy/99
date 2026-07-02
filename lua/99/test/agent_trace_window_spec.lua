@@ -226,6 +226,10 @@ describe("agent trace status window", function()
     assert.matches("requests%(1%)", lines[1])
     eq("visual", lines[2])
     eq(nil, lines[3])
+    eq(
+      Window.status_window_max_width(false),
+      vim.api.nvim_win_get_config(Window.active_windows[1].win_id).width
+    )
 
     finish_request(p)
   end)
