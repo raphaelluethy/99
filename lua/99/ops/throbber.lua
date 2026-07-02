@@ -2,11 +2,16 @@ local time = require("99.time")
 local Consts = require("99.consts")
 
 local throb_icons = {
-  { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
-  { "◐", "◓", "◑", "◒" },
-  { "⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷" },
-  { "◰", "◳", "◲", "◱" },
-  { "◜", "◠", "◝", "◞", "◡", "◟" },
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
 }
 
 --- @alias _99.Throbber.ThrobFN fun(perc: number): string
@@ -18,7 +23,7 @@ local function create_throbber(ease_fn)
   ease_fn = ease_fn or function(p)
     return p
   end
-  local icon_set = throb_icons[math.random(#throb_icons)]
+  local icon_set = throb_icons
   return function(percent)
     local eased = ease_fn(percent)
     local index = math.floor(eased * #icon_set) + 1

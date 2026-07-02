@@ -145,13 +145,18 @@ function BaseProvider:make_request(query, context, observer)
       else
         vim.schedule(function()
           local ok, res = self:_retrieve_response(context)
-          if ok then
+          if ok and vim.trim(res) ~= "" then
             once_complete("success", res)
           else
-            once_complete(
-              "failed",
-              "unable to retrieve response from temp file"
-            )
+            local stdout = join_chunks(stdout_chunks)
+            if stdout ~= "" then
+              once_complete("success", stdout)
+            else
+              once_complete(
+                "failed",
+                "unable to retrieve response from temp file"
+              )
+            end
           end
         end)
       end

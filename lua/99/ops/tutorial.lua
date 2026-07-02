@@ -1,8 +1,35 @@
 local CleanUp = require("99.ops.clean-up")
 local Window = require("99.window")
 local make_prompt = require("99.ops.make-prompt")
+local Range = require("99.geo").Range
 
 local make_observer = CleanUp.make_observer
+
+local function preserve_visual_marks()
+  local mode = vim.api.nvim_get_mode().mode
+  if mode == "visual" or mode == "linewise" or mode == "blockwise" then
+    vim.api.nvim_feedkeys(
+      vim.api.nvim_replace_termcodes("<Esc>", true, false, true),
+      "x",
+      false
+    )
+  end
+end
+
+--- @param context _99.Prompt
+--- @return string|nil
+local function visual_selection_prompt(context)
+  if vim.fn.line("'<") == 0 or vim.fn.line("'>") == 0 then
+    return nil
+  end
+
+  local ok, range = pcall(Range.from_visual_selection)
+  if not ok then
+    return nil
+  end
+
+  return context._99.prompts.prompts.visual_selection(range)
+end
 
 --- @param context _99.Prompt
 ---@param response string
@@ -31,8 +58,16 @@ local function tutorial(context, opts)
   local logger = context.logger:set_area("tutorial")
   logger:debug("starting", "with opts", opts)
 
-  local prompt, refs =
-    make_prompt(context, context._99.prompts.prompts.tutorial(), opts)
+  preserve_visual_marks()
+
+  local system_cmd = context._99.prompts.prompts.tutorial()
+  local selection_prompt = visual_selection_prompt(context)
+  if selection_prompt then
+    system_cmd = system_cmd .. "\n" .. selection_prompt
+    logger:debug("including visual selection in tutorial prompt")
+  end
+
+  local prompt, refs = make_prompt(context, system_cmd, opts)
 
   context:add_references(refs)
   context:add_prompt_content(prompt)

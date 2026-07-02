@@ -25,6 +25,27 @@ function FailingProcessProvider._get_default_model()
   return "test-model"
 end
 
+local StdoutOnlyProvider = setmetatable(
+  {},
+  { __index = Providers.BaseProvider }
+)
+
+function StdoutOnlyProvider._build_command()
+  return {
+    "sh",
+    "-c",
+    "printf 'stdout response'",
+  }
+end
+
+function StdoutOnlyProvider._get_provider_name()
+  return "StdoutOnlyProvider"
+end
+
+function StdoutOnlyProvider._get_default_model()
+  return "test-model"
+end
+
 describe("providers", function()
   describe("OpenCodeProvider", function()
     it("builds correct command with model", function()
@@ -292,6 +313,37 @@ describe("providers", function()
       assert.is_true(completed)
       eq("failed", completed_status)
       assert.matches("sdk missing", completed_result)
+    end)
+
+    it("falls back to stdout when temp file is empty", function()
+      local _99 = require("99")
+      _99.setup(test_utils.get_test_setup_options({}, StdoutOnlyProvider))
+      test_utils.create_file({ "local value = 99" }, "lua", 1, 0)
+
+      local state = _99.__get_state()
+      local context = Prompt.search(state)
+      local completed = false
+      local completed_status = nil
+      local completed_result = nil
+
+      context:start_request({
+        on_start = function() end,
+        on_complete = function(status, result)
+          completed = true
+          completed_status = status
+          completed_result = result
+        end,
+        on_stdout = function() end,
+        on_stderr = function() end,
+      })
+
+      vim.wait(1000, function()
+        return completed
+      end)
+
+      assert.is_true(completed)
+      eq("success", completed_status)
+      assert.matches("stdout response", completed_result)
     end)
   end)
 end)
