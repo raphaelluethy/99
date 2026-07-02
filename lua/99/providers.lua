@@ -339,6 +339,56 @@ function GeminiCLIProvider._get_default_model()
   return "auto"
 end
 
+--- @return string
+local function cursor_sdk_runner_path()
+  local source = debug.getinfo(1, "S").source:sub(2)
+  local root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(source)))
+  return vim.fs.joinpath(root, "cursor-sdk", "runner.mjs")
+end
+
+--- @class CursorSdkProvider : _99.Providers.BaseProvider
+local CursorSdkProvider = setmetatable({}, { __index = BaseProvider })
+
+--- @param query string
+--- @param context _99.Prompt
+--- @return string[]
+function CursorSdkProvider._build_command(_, query, context)
+  return {
+    "node",
+    cursor_sdk_runner_path(),
+    "--model",
+    context.model,
+    query,
+  }
+end
+
+--- @return string
+function CursorSdkProvider._get_provider_name()
+  return "CursorSdkProvider"
+end
+
+--- @return string
+function CursorSdkProvider._get_default_model()
+  return "composer-2.5"
+end
+
+function CursorSdkProvider.fetch_models(callback)
+  vim.system(
+    { "node", cursor_sdk_runner_path(), "--list-models" },
+    { text = true },
+    function(obj)
+      vim.schedule(function()
+        if obj.code ~= 0 then
+          callback(nil, "Failed to fetch models from cursor sdk")
+          return
+        end
+        local models = vim.split(obj.stdout, "\n", { trimempty = true })
+        callback(models, nil)
+      end)
+    end
+  )
+end
+
 return {
   BaseProvider = BaseProvider,
   OpenCodeProvider = OpenCodeProvider,
@@ -346,4 +396,5 @@ return {
   CursorAgentProvider = CursorAgentProvider,
   KiroProvider = KiroProvider,
   GeminiCLIProvider = GeminiCLIProvider,
+  CursorSdkProvider = CursorSdkProvider,
 }

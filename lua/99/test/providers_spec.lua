@@ -66,6 +66,27 @@ describe("providers", function()
     end)
   end)
 
+  describe("CursorSdkProvider", function()
+    it("builds correct command with model", function()
+      local cmd = Providers.CursorSdkProvider._build_command(
+        nil,
+        "test query",
+        { model = "composer-2.5" }
+      )
+      eq(5, #cmd)
+      eq("node", cmd[1])
+      assert.is_truthy(cmd[2]:match("cursor%-sdk/runner%.mjs$"))
+      eq(
+        { "--model", "composer-2.5", "test query" },
+        { cmd[3], cmd[4], cmd[5] }
+      )
+    end)
+
+    it("has correct default model", function()
+      eq("composer-2.5", Providers.CursorSdkProvider._get_default_model())
+    end)
+  end)
+
   describe("GeminiCLIProvider", function()
     it("builds correct command with model", function()
       local request = { model = "gemini-2.5-pro" }
@@ -130,6 +151,17 @@ describe("providers", function()
     )
 
     it(
+      "uses CursorSdkProvider default model when provider specified but no model",
+      function()
+        local _99 = require("99")
+
+        _99.setup({ provider = Providers.CursorSdkProvider })
+        local state = _99.__get_state()
+        eq("composer-2.5", state.model)
+      end
+    )
+
+    it(
       "uses GeminiCLIProvider default model when provider specified but no model",
       function()
         local _99 = require("99")
@@ -175,6 +207,7 @@ describe("providers", function()
       eq("function", type(Providers.OpenCodeProvider.make_request))
       eq("function", type(Providers.ClaudeCodeProvider.make_request))
       eq("function", type(Providers.CursorAgentProvider.make_request))
+      eq("function", type(Providers.CursorSdkProvider.make_request))
       eq("function", type(Providers.GeminiCLIProvider.make_request))
     end)
   end)
