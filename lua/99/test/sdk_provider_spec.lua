@@ -83,6 +83,11 @@ local function run_stub(ndjson, on_complete)
 end
 
 describe("sdk providers", function()
+  it("resolves the runner script inside the plugin root", function()
+    assert.matches("sdk%-runner/runner%.mjs$", Sdk.runner_script())
+    eq(1, vim.fn.filereadable(Sdk.runner_script()))
+  end)
+
   it(
     "forwards streamed events and completes from runner complete event",
     function()
