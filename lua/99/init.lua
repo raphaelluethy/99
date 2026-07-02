@@ -55,6 +55,7 @@ end
 --- @field md_files? string[]
 --- @field provider? _99.Providers.BaseProvider
 --- @field provider_extra_args? string[]
+--- @field sdk? _99.Sdk.Options
 --- @field display_errors? boolean
 --- @field auto_add_skills? boolean
 --- @field completion? _99.Completion

@@ -4,6 +4,12 @@ local Throbber = require("99.ops.throbber")
 
 --- @alias _99.StatusWindow.State "init" | "running"
 
+--- @class _99.StatusWindow.AgentTraceOpts
+--- @field enable boolean | nil
+--- defaults to false
+--- @field max_lines number | nil
+--- defaults to 8, per request
+
 --- @class _99.StatusWindow.Opts
 --- this is pure a class for testing.   helps controls timings
 --- @docs include
@@ -14,6 +20,16 @@ local Throbber = require("99.ops.throbber")
 --- displayed / removed
 --- @field enable boolean | nil
 --- defaults to true
+--- @field agent_trace _99.StatusWindow.AgentTraceOpts | nil
+
+--- @param agent_trace _99.StatusWindow.AgentTraceOpts | nil
+--- @return _99.StatusWindow.AgentTraceOpts
+local function default_agent_trace_opts(agent_trace)
+  agent_trace = agent_trace or {}
+  agent_trace.enable = agent_trace.enable == nil and false or agent_trace.enable
+  agent_trace.max_lines = agent_trace.max_lines or 8
+  return agent_trace
+end
 
 --- @param opts _99.StatusWindow.Opts | nil
 --- @return _99.StatusWindow.Opts
@@ -28,6 +44,7 @@ local function default_opts(opts)
   opts.in_flight_interval = opts.in_flight_interval
     or Consts.show_in_flight_requests_loop_time
   opts.enable = opts.enable == nil and true or opts.enable
+  opts.agent_trace = default_agent_trace_opts(opts.agent_trace)
   return opts
 end
 
@@ -110,13 +127,28 @@ function StatusWindow:_run_loop()
         throb .. " requests(" .. tostring(count) .. ") " .. throb,
       }
 
+      local agent_trace = self.opts.agent_trace
       for _, c in ipairs(self._99.tracking:active()) do
         if c.state == "requesting" then
           table.insert(lines, c.operation)
+          if agent_trace.enable then
+            for _, trace_line in ipairs(c:trace_lines(agent_trace.max_lines)) do
+              table.insert(lines, "  " .. trace_line)
+            end
+          end
         end
       end
 
-      Window.resize(win, #lines[1], #lines)
+      if agent_trace.enable then
+        local width = 0
+        for _, line in ipairs(lines) do
+          width = math.max(width, vim.fn.strdisplaywidth(line))
+        end
+        width = math.min(width, win.config.width)
+        Window.resize(win, width, #lines)
+      else
+        Window.resize(win, #lines[1], #lines)
+      end
       vim.api.nvim_buf_set_lines(win.buf_id, 0, -1, false, lines)
     end, self.opts.throbber_opts)
 

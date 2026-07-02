@@ -138,21 +138,16 @@ describe("providers", function()
   end)
 
   describe("CursorSdkProvider", function()
-    it("uses the agent cli compatibility command with model", function()
+    it("builds the sdk-runner command", function()
       local cmd = Providers.CursorSdkProvider._build_command(
-        nil,
+        Providers.CursorSdkProvider,
         "test query",
         { model = "composer-2.5" }
       )
-      eq({
-        "agent",
-        "--trust",
-        "--model",
-        "composer-2.5",
-        "--force",
-        "--print",
-        "test query",
-      }, cmd)
+      eq("node", cmd[1])
+      assert.matches("runner%.mjs$", cmd[2])
+      eq("--provider", cmd[3])
+      eq("cursor", cmd[4])
     end)
 
     it("keeps the composer default model", function()
@@ -281,6 +276,8 @@ describe("providers", function()
       eq("function", type(Providers.ClaudeCodeProvider.make_request))
       eq("function", type(Providers.CursorAgentProvider.make_request))
       eq("function", type(Providers.CursorSdkProvider.make_request))
+      eq("function", type(Providers.ClaudeSdkProvider.make_request))
+      eq("function", type(Providers.OpenCodeSdkProvider.make_request))
       eq("function", type(Providers.GeminiCLIProvider.make_request))
     end)
 

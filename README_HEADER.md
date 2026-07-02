@@ -37,6 +37,9 @@ Referenced content is automatically resolved and injected into the AI context. R
 | `ClaudeCodeProvider` | `claude` | `claude-sonnet-4-5` |
 | `CursorAgentProvider` | `agent` | `sonnet-4.5` |
 | `GeminiCLIProvider` | `gemini` | `auto` |
+| `ClaudeSdkProvider` | node sdk-runner | `claude-sonnet-4-5` |
+| `CursorSdkProvider` | node sdk-runner | `composer-2.5` |
+| `OpenCodeSdkProvider` | node sdk-runner | `opencode/claude-sonnet-4-5` |
 
 ```lua
 _99.setup({
@@ -45,6 +48,26 @@ _99.setup({
     model = "claude-sonnet-4-5",
 })
 ```
+
+### SDK providers
+
+SDK-backed providers (`ClaudeSdkProvider`, `CursorSdkProvider`, `OpenCodeSdkProvider`) talk to a bundled Node sidecar (`sdk-runner/`) instead of shelling out to a CLI. They stream normalized agent trace events (text, thinking, tool calls) with lower latency than one-shot CLI invocations.
+
+Requirements: Node.js >= 18 and npm on your PATH. On first use, 99 runs `npm install` inside `sdk-runner/` automatically. Opt out with:
+
+```lua
+_99.setup({
+    sdk = { auto_install = false },
+})
+```
+
+Provider API keys (set as environment variables, never logged by 99):
+
+- `CursorSdkProvider` — `CURSOR_API_KEY`
+- `ClaudeSdkProvider` — typically uses the Claude Code auth stack; `ANTHROPIC_API_KEY` may be required depending on your setup
+- `OpenCodeSdkProvider` — uses OpenCode's own provider auth configuration
+
+Run `:checkhealth 99` to diagnose node, sdk-runner install state, API keys, and CLI provider binaries.
 
 ## Extensions
 

@@ -1,0 +1,13 @@
+{
+  "name": "99-sdk-runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.198",
+    "@cursor/sdk": "^1.0.22",
+    "@opencode-ai/sdk": "^1.17.13"
+  }
+}
