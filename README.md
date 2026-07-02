@@ -434,7 +434,7 @@ Referenced content is automatically resolved and injected into the AI context. N
 |---|---|---|
 | `OpenCodeProvider` (default) | `opencode` | `opencode/claude-sonnet-4-5` |
 | `ClaudeCodeProvider` | `claude` | `claude-sonnet-4-5` |
-| `CursorAgentProvider` | `cursor-agent` | `sonnet-4.5` |
+| `CursorAgentProvider` | `agent` | `composer-2.5` |
 | `GeminiCLIProvider` | `gemini` | `auto` |
 
 ```lua
@@ -497,4 +497,3 @@ To get the _last_ run's logs execute `:lua require("99").view_logs()`.
 ### Dont forget
 If there are secrets or other information in the logs you want to be removed make
 sure that you delete the `query` printing. This will likely contain information you may not want to share.
-

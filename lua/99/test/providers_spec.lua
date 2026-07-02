@@ -76,11 +76,11 @@ describe("providers", function()
       local cmd =
         Providers.CursorAgentProvider._build_command(nil, "test query", request)
       eq({
-        "cursor-agent",
+        "agent",
         "--trust",
-        "--force",
         "--model",
         "anthropic/claude-sonnet-4-5",
+        "--force",
         "--print",
         "test query",
       }, cmd)
@@ -89,25 +89,52 @@ describe("providers", function()
     it("has correct default model", function()
       eq("sonnet-4.5", Providers.CursorAgentProvider._get_default_model())
     end)
+
+    it("uses agent for model listing", function()
+      local old_system = vim.system
+      local captured_command = nil
+      local models = nil
+      vim.system = function(command, _, callback)
+        captured_command = command
+        callback({
+          code = 0,
+          stdout = "sonnet-4.5 - Sonnet\nopus-4.5 - Opus\n",
+        })
+      end
+
+      local ok, err = xpcall(function()
+        Providers.CursorAgentProvider.fetch_models(function(result)
+          models = result
+        end)
+        test_utils.next_frame()
+      end, debug.traceback)
+      vim.system = old_system
+
+      assert.is_true(ok, err)
+      eq({ "agent", "models" }, captured_command)
+      eq({ "sonnet-4.5", "opus-4.5" }, models)
+    end)
   end)
 
   describe("CursorSdkProvider", function()
-    it("builds correct command with model", function()
+    it("uses the agent cli compatibility command with model", function()
       local cmd = Providers.CursorSdkProvider._build_command(
         nil,
         "test query",
         { model = "composer-2.5" }
       )
-      eq(5, #cmd)
-      eq("node", cmd[1])
-      assert.is_truthy(cmd[2]:match("cursor%-sdk/runner%.mjs$"))
-      eq(
-        { "--model", "composer-2.5", "test query" },
-        { cmd[3], cmd[4], cmd[5] }
-      )
+      eq({
+        "agent",
+        "--trust",
+        "--model",
+        "composer-2.5",
+        "--force",
+        "--print",
+        "test query",
+      }, cmd)
     end)
 
-    it("has correct default model", function()
+    it("keeps the composer default model", function()
       eq("composer-2.5", Providers.CursorSdkProvider._get_default_model())
     end)
   end)

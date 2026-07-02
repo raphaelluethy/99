@@ -4,6 +4,7 @@ local M = {}
 
 local function is_selectable_provider(provider)
   return type(provider) == "table"
+    and provider._selectable ~= false
     and type(provider._get_provider_name) == "function"
     and type(provider._build_command) == "function"
 end

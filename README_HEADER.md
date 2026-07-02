@@ -35,11 +35,8 @@ Referenced content is automatically resolved and injected into the AI context. R
 |---|---|---|
 | `OpenCodeProvider` (default) | `opencode` | `opencode/claude-sonnet-4-5` |
 | `ClaudeCodeProvider` | `claude` | `claude-sonnet-4-5` |
-| `CursorAgentProvider` | `cursor-agent` | `sonnet-4.5` |
-| `CursorSdkProvider` | `node` + `@cursor/sdk` | `composer-2.5` |
+| `CursorAgentProvider` | `agent` | `sonnet-4.5` |
 | `GeminiCLIProvider` | `gemini` | `auto` |
-
-`CursorSdkProvider` runs the [Cursor SDK](https://cursor.com/docs/sdk/typescript) via a bundled Node runner; it requires Node.js 22.13+, `CURSOR_API_KEY` set in the environment, and a one-time `npm install` inside the plugin's `cursor-sdk/` directory.
 
 ```lua
 _99.setup({
@@ -101,4 +98,3 @@ To get the _last_ run's logs execute `:lua require("99").view_logs()`.
 ### Dont forget
 If there are secrets or other information in the logs you want to be removed make
 sure that you delete the `query` printing. This will likely contain information you may not want to share.
-
