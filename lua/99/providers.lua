@@ -17,6 +17,12 @@ local function once(fn)
   end
 end
 
+--- @param chunks string[]
+--- @return string
+local function join_chunks(chunks)
+  return table.concat(chunks, "")
+end
+
 --- @class _99.Providers.BaseProvider
 --- @field _build_command fun(self: _99.Providers.BaseProvider, query: string, context: _99.Prompt): string[]
 --- @field _get_provider_name fun(self: _99.Providers.BaseProvider): string
@@ -77,6 +83,9 @@ function BaseProvider:make_request(query, context, observer)
   end
   logger:debug("make_request", "command", command)
 
+  local stdout_chunks = {}
+  local stderr_chunks = {}
+
   local proc = vim.system(
     command,
     {
@@ -91,6 +100,7 @@ function BaseProvider:make_request(query, context, observer)
           logger:debug("stdout#error", "err", err)
         end
         if not err and data then
+          table.insert(stdout_chunks, data)
           observer.on_stdout(data)
         end
       end),
@@ -103,7 +113,8 @@ function BaseProvider:make_request(query, context, observer)
         if err and err ~= "" then
           logger:debug("stderr#error", "err", err)
         end
-        if not err then
+        if not err and data then
+          table.insert(stderr_chunks, data)
           observer.on_stderr(data)
         end
       end),
@@ -115,10 +126,18 @@ function BaseProvider:make_request(query, context, observer)
         return
       end
       if obj.code ~= 0 then
-        local str =
-          string.format("process exit code: %d\n%s", obj.code, vim.inspect(obj))
+        local stdout = join_chunks(stdout_chunks)
+        local stderr = join_chunks(stderr_chunks)
+        local str = string.format("process exit code: %d", obj.code)
+        if stderr ~= "" then
+          str = str .. "\nstderr:\n" .. stderr
+        end
+        if stdout ~= "" then
+          str = str .. "\nstdout:\n" .. stdout
+        end
+        str = str .. "\n" .. vim.inspect(obj)
         once_complete("failed", str)
-        logger:fatal(
+        logger:error(
           self:_get_provider_name() .. " make_query failed: " .. str,
           "obj from results",
           obj
@@ -238,7 +257,7 @@ function CursorAgentProvider._build_command(_, query, context)
   -- TODO: trust is sort of a hack and should probably be removed in favor of having a
   -- trust flag from the setup call
   return {
-    "cursor-agent",
+    "agent",
     "--trust", -- directories are always trusted and can be ran in
     "--force", -- allows for commands to run
     "--model",

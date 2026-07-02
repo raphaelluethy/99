@@ -37,6 +37,19 @@ local function qfix_items()
   return out
 end
 
+local function resolve_filenames(items)
+  local out = {}
+  for _, item in ipairs(items) do
+    table.insert(out, {
+      filename = vim.fn.resolve(item.filename),
+      col = item.col,
+      lnum = item.lnum,
+      text = item.text,
+    })
+  end
+  return out
+end
+
 describe("open", function()
   local provider
   local previous_capture_select_input
@@ -97,11 +110,11 @@ describe("open", function()
 
     select_content(2)
     _99.open()
-    eq(QFixHelpers.create_qfix_entries(v), qfix_items())
+    eq(resolve_filenames(QFixHelpers.create_qfix_entries(v)), qfix_items())
 
     select_content(3)
     _99.open()
-    eq(QFixHelpers.create_qfix_entries(s), qfix_items())
+    eq(resolve_filenames(QFixHelpers.create_qfix_entries(s)), qfix_items())
   end)
 
   it("views logs for selected request xid", function()
