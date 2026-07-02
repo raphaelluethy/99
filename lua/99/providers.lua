@@ -257,10 +257,10 @@ function SdkProvider._ensure_ready(_, context, cb)
   end)
 end
 
---- @param query string
---- @param context _99.Prompt
+--- @param _query string
+--- @param _context _99.Prompt
 --- @return string[]
-function SdkProvider:_build_command(_, _query, _context)
+function SdkProvider:_build_command(_query, _context)
   return {
     "node",
     Sdk.runner_script(),
@@ -302,6 +302,10 @@ function SdkProvider:make_request(query, context, observer)
   local function forward_event(event, stashed)
     if event.type == "complete" then
       return event
+    end
+    -- make_request already emitted the paired start event
+    if event.type == "start" then
+      return stashed
     end
     if observer.on_event then
       observer.on_event(event)

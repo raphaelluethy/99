@@ -6,6 +6,7 @@ describe("sdk", function()
   it("derives plugin paths from this module", function()
     assert.matches("sdk%-runner$", Sdk.runner_dir())
     assert.matches("runner%.mjs$", Sdk.runner_script())
+    eq(1, vim.fn.filereadable(Sdk.runner_script()))
   end)
 
   it("reports node availability from executable lookup", function()

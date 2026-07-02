@@ -105,7 +105,7 @@ export async function runOpencode(request, signal) {
     server = opencode.server;
 
     const sessionResult = await opencode.client.session.create({
-      directory: request.cwd,
+      query: { directory: request.cwd },
     });
     if (sessionResult.error || !sessionResult.data) {
       throw new Error(
@@ -115,7 +115,7 @@ export async function runOpencode(request, signal) {
     const sessionID = sessionResult.data.id;
 
     const events = await opencode.client.event.subscribe({
-      directory: request.cwd,
+      query: { directory: request.cwd },
     });
 
     eventTask = (async () => {
@@ -163,10 +163,13 @@ export async function runOpencode(request, signal) {
 
     const { providerID, modelID } = splitModel(request.model);
     const promptResult = await opencode.client.session.prompt({
-      sessionID,
-      directory: request.cwd,
-      model: { providerID, modelID },
-      parts: [{ type: "text", text: request.prompt }],
+      path: { id: sessionID },
+      query: { directory: request.cwd },
+      body: {
+        model: { providerID, modelID },
+        agent: "build",
+        parts: [{ type: "text", text: request.prompt }],
+      },
     });
 
     if (signal.aborted) {
@@ -189,16 +192,18 @@ export async function runOpencode(request, signal) {
     }
     return { status: "failed", result: text };
   } finally {
-    if (eventTask) {
+    // close the server first: the SSE stream only ends when the connection
+    // drops, so awaiting eventTask before close would deadlock
+    if (server) {
       try {
-        await eventTask.catch(() => undefined);
+        server.close();
       } catch {
         // noop
       }
     }
-    if (server) {
+    if (eventTask) {
       try {
-        server.close();
+        await eventTask.catch(() => undefined);
       } catch {
         // noop
       }

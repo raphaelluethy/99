@@ -12,8 +12,9 @@ function M.plugin_root()
   if source:sub(1, 1) == "@" then
     source = source:sub(2)
   end
+  -- <root>/lua/99/sdk.lua -> <root>
   local dir = vim.fs.dirname(source)
-  plugin_root_cache = vim.fs.dirname(dir)
+  plugin_root_cache = vim.fs.dirname(vim.fs.dirname(dir))
   return plugin_root_cache
 end
 
