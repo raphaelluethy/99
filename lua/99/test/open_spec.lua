@@ -71,7 +71,7 @@ describe("open", function()
     Logger.logs_by_id = previous_logs_by_id
   end)
 
-  --- @param term "search" | "question" | "vibe"
+  --- @param term "search" | "tutorial" | "vibe"
   ---@param result_str any
   local function op(term, result_str)
     _99[term]({ additional_prompt = result_str })
@@ -89,8 +89,8 @@ describe("open", function()
     return op("vibe", "/tmp/bar.lua:2:2,search bar note")
   end
 
-  local function question()
-    return op("question", "here is a large question")
+  local function tutorial()
+    return op("tutorial", "here is a large tutorial")
   end
 
   local function select_content(idx)
@@ -102,7 +102,7 @@ describe("open", function()
   it("selects a previous search and passes edited output to vibe", function()
     local s = search()
     local v = vibe()
-    local t = question()
+    local t = tutorial()
 
     select_content(1)
     _99.open()

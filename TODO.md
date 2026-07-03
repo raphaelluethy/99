@@ -65,7 +65,7 @@ Notes:
     - use capture input style to "mark" them as done. [x] as done, or delete line
     - this should mean that when we revive the work menu list, it reflects the new reality
 - Search item navigation. We should just be able to next("search") to navigate the searches
-- questions, searches, and visuals should all have their own history
+- tutorials, searches, and visuals should all have their own history
 - clean history should be on a vertical as well
 - state of state
 - maybe this needs to be persisted as json in a tmp file such that we can restore it upon opening. I could see this being super useful
