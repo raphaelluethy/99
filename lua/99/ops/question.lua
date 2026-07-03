@@ -33,18 +33,18 @@ end
 
 --- @param context _99.Prompt
 ---@param response string
----@return _99.Prompt.Data.Tutorial
-local function open_tutorial(context, response)
+---@return _99.Prompt.Data.Question
+local function open_question(context, response)
   local content = vim.split(response, "\n")
   local win = Window.create_split(content)
 
-  --- @type _99.Prompt.Data.Tutorial
+  --- @type _99.Prompt.Data.Question
   local data = {
-    type = "tutorial",
+    type = "question",
     buffer = win.buffer,
     window = win.win,
     xid = context.xid,
-    tutorial = content,
+    question = content,
   }
   context.data = data
   return data
@@ -52,19 +52,19 @@ end
 
 --- @param context _99.Prompt
 ---@param opts _99.ops.Opts
-local function tutorial(context, opts)
+local function question(context, opts)
   opts = opts or {}
 
-  local logger = context.logger:set_area("tutorial")
+  local logger = context.logger:set_area("question")
   logger:debug("starting", "with opts", opts)
 
   preserve_visual_marks()
 
-  local system_cmd = context._99.prompts.prompts.tutorial()
+  local system_cmd = context._99.prompts.prompts.question()
   local selection_prompt = visual_selection_prompt(context)
   if selection_prompt then
     system_cmd = system_cmd .. "\n" .. selection_prompt
-    logger:debug("including visual selection in tutorial prompt")
+    logger:debug("including visual selection in question prompt")
   end
 
   local prompt, refs = make_prompt(context, system_cmd, opts)
@@ -82,9 +82,9 @@ local function tutorial(context, opts)
         response or "no response provided"
       )
     elseif status == "success" then
-      open_tutorial(context, response)
+      open_question(context, response)
       context._99:sync()
     end
   end))
 end
-return tutorial
+return question

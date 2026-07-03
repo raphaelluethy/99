@@ -16,7 +16,7 @@ describe("tracking", function()
       serialize_counts = {
         vibe = 1,
         search = 1,
-        tutorial = 3,
+        question = 3,
         visual = 0,
       },
     })
@@ -31,17 +31,17 @@ describe("tracking", function()
     run(provider, "search", "success", "search two")
     run(provider, "vibe", "success", "vibe one")
     run(provider, "vibe", "success", "vibe two")
-    run(provider, "tutorial", "success", "tutorial one")
-    run(provider, "tutorial", "success", "tutorial two")
-    run(provider, "tutorial", "success", "tutorial three")
-    run(provider, "tutorial", "success", "tutorial four")
+    run(provider, "question", "success", "question one")
+    run(provider, "question", "success", "question two")
+    run(provider, "question", "success", "question three")
+    run(provider, "question", "success", "question four")
     run(provider, "search", "failed", "search failed")
 
     local serialized = _99.__get_state().tracking:serialize()
     local actual_counts = {
       search = 0,
       vibe = 0,
-      tutorial = 0,
+      question = 0,
       visual = 0,
     }
 
@@ -51,7 +51,7 @@ describe("tracking", function()
 
     eq(1, actual_counts.search)
     eq(1, actual_counts.vibe)
-    eq(3, actual_counts.tutorial)
+    eq(3, actual_counts.question)
     eq(0, actual_counts.visual)
     eq(5, #serialized.requests)
 
@@ -68,7 +68,7 @@ describe("tracking", function()
     run(provider, "search", "success", "first success")
     run(provider, "search", "failed", "failed request")
     run(provider, "vibe", "success", "second success")
-    run(provider, "tutorial", "success", "third success")
+    run(provider, "question", "success", "third success")
 
     local successful = _99.__get_state().tracking:successful()
     eq(3, #successful)
