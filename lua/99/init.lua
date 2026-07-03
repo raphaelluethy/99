@@ -52,10 +52,13 @@ end
 --- @field logger? _99.Logger.Options
 --- @field model? string
 --- @field in_flight_options? _99.StatusWindow.Opts
+--- In-flight status window; see `_99.StatusWindow.Opts` and the Status window
+--- section in the README.
 --- @field md_files? string[]
 --- @field provider? _99.Providers.BaseProvider
 --- @field provider_extra_args? string[]
 --- @field sdk? _99.Sdk.Options
+--- SDK runner install options; required when using SDK providers.
 --- @field display_errors? boolean
 --- @field auto_add_skills? boolean
 --- @field completion? _99.Completion
@@ -201,8 +204,13 @@ local _99_state
 --- search and vibe, it will open the qfix window.  For tutorial, it will open
 --- the tutorial window.
 --- @field visual fun(opts: _99.ops.Opts): _99.TraceID
---- takes your current selection and sends that along with the prompt provided and replaces
---- your visual selection with the results
+--- Replaces the current visual selection with the provider response. Must be
+--- called with an active visual selection (map it from visual mode). The
+--- selection marks must remain valid until the request completes.
+--- @field tutorial fun(opts: _99.ops.Opts): nil
+--- Generates a markdown tutorial from your prompt and opens it in a split
+--- window. Optionally includes the current or last visual selection as context
+--- without modifying the source buffer; see the Tutorial section in the README.
 --- @field view_logs fun(): nil
 --- view_logs allows you to select the request you want to see and then you
 --- get to see the logs.

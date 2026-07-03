@@ -5,13 +5,17 @@ local Throbber = require("99.ops.throbber")
 --- @alias _99.StatusWindow.State "init" | "running"
 
 --- @class _99.StatusWindow.AgentTraceOpts
+--- @docs include
+--- Options for live agent trace lines in the status window.
 --- @field enable boolean | nil
+--- When true, stream trace lines (text, tool calls) under each active request.
 --- defaults to false
 --- @field max_lines number | nil
---- defaults to 8, per request
+--- Maximum trace lines shown per active request.
+--- defaults to 8
 
 --- @class _99.StatusWindow.Opts
---- this is pure a class for testing.   helps controls timings
+--- Controls the in-flight status window shown while requests run.
 --- @docs include
 --- @field throbber_opts _99.Throbber.Opts | nil
 --- options for the throbber in the top left
@@ -19,8 +23,11 @@ local Throbber = require("99.ops.throbber")
 --- frequency in which the in-flight interval checks to see if it should be
 --- displayed / removed
 --- @field enable boolean | nil
+--- When false, the status window is not shown.
 --- defaults to true
 --- @field agent_trace _99.StatusWindow.AgentTraceOpts | nil
+--- Live trace display for SDK providers; widens the window to one third of the
+--- editor width and truncates lines to fit.
 
 --- @param line string
 --- @param width number

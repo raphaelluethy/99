@@ -10,7 +10,11 @@ local function default_completion()
 end
 
 --- @class _99.Sdk.Options
+--- @docs include
+--- Configuration for the bundled sdk-runner sidecar used by SDK providers.
 --- @field auto_install? boolean
+--- When true (default), 99 runs `npm install` in sdk-runner/ on first SDK request.
+--- Set false to install dependencies manually.
 
 --- @class _99.StateProps
 --- @field model string
