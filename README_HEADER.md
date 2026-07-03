@@ -2,11 +2,7 @@
 
 The AI client that Neovim deserves, built by those that still enjoy to code.
 
-Built as a fork of [99](https://github.com/ThePrimeagen/99) with some modifications to support new providers and other nice to haves.
-
-## WARNING :: API CHANGES RIGHT NOW
-
-It will happen that apis will disapear or be changed. Sorry, this is an BETA product.
+A personal fork of [99](https://github.com/ThePrimeagen/99) by [ThePrimeagen](https://github.com/ThePrimeagen), developed to fit my own taste and workflow needs — with extra providers, SDK support, and other tweaks on top of the original.
 
 ## Project Direction
 
@@ -15,10 +11,9 @@ This repo is meant to be my exploration grounds for using AI mixed with tradcodi
 I believe that hand coding is still very important and the best products i know
 of today still do that (see opencode vs claude code)
 
-## Warning
+## Note
 
 1. Prompts are temporary right now. they could be massively improved
-2. Officially in beta, but api can still change. unlikely at this point
 
 _**DOCS**_
 
