@@ -14,13 +14,15 @@ end
 
 --- @class _99.Prompts.SpecificOperations
 --- @field visual_selection fun(range: _99.Range): string
+--- @field visual_selection_context fun(range: _99.Range): string
 --- @field semantic_search fun(): string
 --- @field vibe fun(): string
 --- @field tutorial fun(): string
 --- @field prompt fun(prompt: string, action: string, name?: string): string
 --- @field role fun(): string
 --- @field read_tmp fun(): string
-local prompts = {
+local prompts
+prompts = {
   role = function()
     return [[ You are a software engineering assistant mean to create robust and conanical code ]]
   end,
@@ -143,12 +145,9 @@ ONLY provide requested changes by writing the change to TEMP_FILE
       name
     )
   end,
-  visual_selection = function(range)
+  visual_selection_context = function(range)
     return string.format(
       [[
-You receive a selection in neovim that you need to replace with new code.
-The selection's contents may contain notes, incorporate the notes every time if there are some.
-consider the context of the selection and what you are suppose to be implementing
 <SELECTION_LOCATION>
 %s
 </SELECTION_LOCATION>
@@ -163,6 +162,21 @@ consider the context of the selection and what you are suppose to be implementin
       range:to_text(),
       get_surrounding_context(range, 100)
     )
+  end,
+  visual_selection = function(range)
+    return [[
+You receive a selection in neovim that you need to replace with new code.
+The selection's contents may contain notes, incorporate the notes every time if there are some.
+consider the context of the selection and what you are suppose to be implementing
+<Rule>Your output is substituted verbatim for the EXACT selection, from its first
+line through its last line</Rule>
+<Rule>Never output only a fragment of the selection.  Every selected line must be
+accounted for in the replacement, including declarations, braces, or delimiters
+that merely happen to fall inside the selection</Rule>
+<Rule>Do not include any lines from SURROUNDING_CONTEXT that are outside the selection</Rule>
+<Rule>Output raw code only: no markdown fences, no commentary, no explanations</Rule>
+<Rule>The output must remain syntactically valid when it takes the selection's place</Rule>
+]] .. prompts.visual_selection_context(range)
   end,
   read_tmp = function()
     return [[

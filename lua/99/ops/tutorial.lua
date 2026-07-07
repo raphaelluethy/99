@@ -28,7 +28,7 @@ local function visual_selection_prompt(context)
     return nil
   end
 
-  return context._99.prompts.prompts.visual_selection(range)
+  return context._99.prompts.prompts.visual_selection_context(range)
 end
 
 --- @param context _99.Prompt
