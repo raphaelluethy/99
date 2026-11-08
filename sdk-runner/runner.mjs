@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import readline from "node:readline";
-import { runClaude } from "./lib/claude.mjs";
+import { listClaudeModels, runClaude } from "./lib/claude.mjs";
 import { listCursorModels, runCursor } from "./lib/cursor.mjs";
 import { runFake, runHang } from "./lib/fake.mjs";
 import { runOpencode } from "./lib/opencode.mjs";
@@ -110,19 +110,26 @@ async function main() {
   }
 
   if (listModels) {
-    if (provider === "cursor") {
-      try {
-        const models = await listCursorModels();
-        for (const id of models) {
-          process.stdout.write(`${id}\n`);
-        }
-        process.exit(0);
-      } catch (err) {
-        const text = err instanceof Error ? err.message : String(err);
-        startupError(text);
-      }
+    /** @type {Record<string, () => Promise<string[]>>} */
+    const listers = {
+      cursor: () => listCursorModels(),
+      claude: () => listClaudeModels(),
+      fake: async () => ["fake-model-a", "fake-model-b"],
+    };
+    const lister = listers[provider];
+    if (!lister) {
+      startupError(`--list-models is not supported for provider ${provider}`);
     }
-    startupError("not supported");
+    try {
+      const models = await lister();
+      for (const id of models) {
+        process.stdout.write(`${id}\n`);
+      }
+      process.exit(0);
+    } catch (err) {
+      const text = err instanceof Error ? err.message : String(err);
+      startupError(text);
+    }
   }
 
   if (provider === "cursor" && !process.env.CURSOR_API_KEY) {

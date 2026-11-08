@@ -44,7 +44,8 @@ through `search` and `work`
             local cwd = vim.uv.cwd()
             local basename = vim.fs.basename(cwd)
 			_99.setup({
-                -- provider = _99.Providers.ClaudeCodeProvider,  -- default: OpenCodeProvider
+                -- backend = "claude",  -- default; or "opencode" / "opencode-sdk"
+                -- provider = _99.Providers.ClaudeCodeProvider,  -- explicit provider wins over backend
 				logger = {
 					level = _99.DEBUG,
 					path = "/tmp/" .. basename .. ".99.debug",
@@ -170,7 +171,7 @@ locations with notes that will be put into your quick fix list.
 
 #### vibe
 
-will ask opencode or whatever provider currently being used to perform a vibe
+will ask the configured backend (Claude by default) to perform a vibe
 session.
 
 #### open
@@ -200,7 +201,7 @@ get to see the logs.
 #### stop_all_requests
 
 stops all in flight requests. this means that the underlying process will
-be killed (OpenCode) and any result will be discared
+be killed (CLI or sdk-runner) and any result will be discarded
 
 #### clear_previous_requests
 
@@ -252,6 +253,7 @@ No description.
 | `model`               | `string \| nil`                     | -             |
 | `in_flight_options`   | `_99.StatusWindow.Opts \| nil`      | -             |
 | `md_files`            | `string[] \| nil`                   | -             |
+| `backend`             | `_99.Backend \| nil`                | -             |
 | `provider`            | `_99.Providers.BaseProvider \| nil` | -             |
 | `provider_extra_args` | `string[] \| nil`                   | -             |
 | `sdk`                 | `_99.Sdk.Options \| nil`            | -             |
@@ -279,9 +281,16 @@ section in the README.
 
 No description.
 
+#### backend
+
+Which agent backend to use: "claude" (default, ClaudeSdkProvider via the
+Claude Agent SDK), "opencode" (OpenCodeProvider, the opencode CLI) or
+"opencode-sdk" (OpenCodeSdkProvider, opencode 1.x only). Ignored when
+`provider` is set.
+
 #### provider
 
-No description.
+Explicit provider; takes precedence over `backend`.
 
 #### provider_extra_args
 
@@ -575,19 +584,53 @@ When prompting, you can reference rules and files to add context to your request
 
 Referenced content is automatically resolved and injected into the AI context. Requires cmp (`source = "cmp"` in your completion config).
 
+## Backends
+
+99 runs on the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) by default, with opencode as the alternative. Pick one with `backend`:
+
+| `backend`            | Provider              | Runs                                     | Default model                |
+| -------------------- | --------------------- | ---------------------------------------- | ---------------------------- |
+| `"claude"` (default) | `ClaudeSdkProvider`   | Claude Agent SDK via node `sdk-runner/`  | `sonnet`                     |
+| `"opencode"`         | `OpenCodeProvider`    | `opencode run` CLI (opencode 1.x or 2.x) | `opencode/claude-sonnet-4-5` |
+| `"opencode-sdk"`     | `OpenCodeSdkProvider` | `@opencode-ai/sdk` via `sdk-runner/`     | `opencode/claude-sonnet-4-5` |
+
+```lua
+-- Claude (default). model accepts the SDK aliases ("sonnet", "opus",
+-- "haiku", "default") or a full model id.
+_99.setup({
+    backend = "claude",
+    model = "sonnet",
+})
+
+-- opencode. model is "<provider>/<model>" as printed by `opencode models`.
+_99.setup({
+    backend = "opencode",
+    model = "opencode/claude-sonnet-5-5",
+})
+```
+
+If you don't set `model`, the backend's default is used. Check that the opencode default still exists with `opencode models`; set `model` explicitly otherwise.
+
+`"opencode-sdk"` only works with opencode 1.x: `@opencode-ai/sdk` cannot talk to the opencode 2.x server, and the runner fails fast with a message saying so. Use `"opencode"` with opencode 2.x.
+
+At runtime, `_99.set_backend("opencode")` switches backend and resets the model to that backend's default. `_99.get_backend()` returns the active backend name (`nil` after picking a provider explicitly).
+
+The Claude backend runs with `permissionMode = "bypassPermissions"` (the SDK equivalent of `claude --dangerously-skip-permissions`) because 99 needs the agent to edit files and write its answer to the temp file without prompting. Only use it in projects where you are fine with that.
+
 ## Providers
 
-99 supports multiple AI CLI backends. Set `provider` in your setup to switch. If you don't set `model`, the provider's default is used.
+`backend` covers the common cases. For anything else set `provider` directly; an explicit `provider` always wins over `backend`.
 
-| Provider                     | CLI tool        | Default model                |
-| ---------------------------- | --------------- | ---------------------------- |
-| `OpenCodeProvider` (default) | `opencode`      | `opencode/claude-sonnet-4-5` |
-| `ClaudeCodeProvider`         | `claude`        | `claude-sonnet-4-5`          |
-| `CursorAgentProvider`        | `agent`         | `sonnet-4.5`                 |
-| `GeminiCLIProvider`          | `gemini`        | `auto`                       |
-| `ClaudeSdkProvider`          | node sdk-runner | `claude-sonnet-4-5`          |
-| `CursorSdkProvider`          | node sdk-runner | `composer-2.5`               |
-| `OpenCodeSdkProvider`        | node sdk-runner | `opencode/claude-sonnet-4-5` |
+| Provider              | Runs            | Default model                |
+| --------------------- | --------------- | ---------------------------- |
+| `ClaudeSdkProvider`   | node sdk-runner | `sonnet`                     |
+| `OpenCodeProvider`    | `opencode`      | `opencode/claude-sonnet-4-5` |
+| `OpenCodeSdkProvider` | node sdk-runner | `opencode/claude-sonnet-4-5` |
+| `ClaudeCodeProvider`  | `claude`        | `claude-sonnet-4-5`          |
+| `CursorAgentProvider` | `agent`         | `sonnet-4.5`                 |
+| `CursorSdkProvider`   | node sdk-runner | `composer-2.5`               |
+| `GeminiCLIProvider`   | `gemini`        | `auto`                       |
+| `KiroProvider`        | `kiro-cli`      | `claude-sonnet-4.5`          |
 
 ```lua
 _99.setup({
@@ -623,8 +666,8 @@ _99.setup({
 Provider API keys (set as environment variables, never logged by 99):
 
 - `CursorSdkProvider` — `CURSOR_API_KEY`
-- `ClaudeSdkProvider` — typically uses the Claude Code auth stack; `ANTHROPIC_API_KEY` may be required depending on your setup
-- `OpenCodeSdkProvider` — uses OpenCode's own provider auth configuration
+- `ClaudeSdkProvider` — uses your Claude Code login (`claude` / `/login`) or `ANTHROPIC_API_KEY`
+- `OpenCodeProvider` / `OpenCodeSdkProvider` — use opencode's own provider auth (`opencode auth login`)
 
 Run `:checkhealth 99` to diagnose node, sdk-runner install state, API keys, and CLI provider binaries.
 
@@ -697,11 +740,11 @@ vim.keymap.set("n", "<leader>9m", function()
 end)
 ```
 
-The selected model is used for all subsequent requests in the current session.
+The selected model is used for all subsequent requests in the current session. The list comes from the active backend: for `"claude"` the bundled Claude Code reports the models it accepts (no prompt is sent; falls back to `sonnet`/`opus`/`haiku`/`default` before `sdk-runner` is installed), for `"opencode"` it is `opencode models`.
 
 ### Telescope Provider Selector
 
-Switch between providers (OpenCode, Claude, Cursor, Kiro) without restarting Neovim. Switching provider also resets the model to that provider's default.
+Switch between providers (Claude SDK, OpenCode, Cursor, Kiro, ...) without restarting Neovim. Switching provider also resets the model to that provider's default. The picker preselects the provider your `backend` resolved to.
 
 ```lua
 vim.keymap.set("n", "<leader>9p", function()

@@ -3,6 +3,7 @@ local Agents = require("99.extensions.agents")
 local Extensions = require("99.extensions")
 local Tracking = require("99.state.tracking")
 local Window = require("99.window")
+local Providers = require("99.providers")
 
 local _99_STATE_FILE = "state"
 local function default_completion()
@@ -37,6 +38,7 @@ end
 --- @field ai_stdout_rows number
 --- @field display_errors boolean
 --- @field provider_override _99.Providers.BaseProvider?
+--- @field backend _99.Backend | nil backend name, nil when an explicit provider was configured
 --- @field provider_extra_args string[]
 --- @field sdk _99.Sdk.Options
 --- @field rules _99.Agents.Rules
@@ -81,7 +83,14 @@ function State.new(opts)
   local props = create()
   local _99_state = setmetatable(props, State) --[[@as _99.State]]
 
-  _99_state.provider_override = opts.provider
+  -- an explicit provider always wins; otherwise resolve the backend name
+  if opts.provider then
+    _99_state.backend = nil
+    _99_state.provider_override = opts.provider
+  else
+    _99_state.backend = opts.backend or Providers.DEFAULT_BACKEND
+    _99_state.provider_override = Providers.resolve_backend(_99_state.backend)
+  end
   _99_state.provider_extra_args = opts.provider_extra_args or {}
   _99_state.sdk = opts.sdk or {}
   if _99_state.sdk.auto_install == nil then

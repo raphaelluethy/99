@@ -45,8 +45,9 @@ function M.check()
   if vim.env.ANTHROPIC_API_KEY and vim.env.ANTHROPIC_API_KEY ~= "" then
     vim.health.ok("ANTHROPIC_API_KEY is set")
   else
-    vim.health.warn(
-      "ANTHROPIC_API_KEY is not set (may be required for ClaudeSdkProvider)"
+    vim.health.info(
+      "ANTHROPIC_API_KEY is not set; the claude backend (ClaudeSdkProvider) "
+        .. "will use your Claude Code login instead"
     )
   end
 

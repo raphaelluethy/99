@@ -185,16 +185,16 @@ describe("providers", function()
       eq(Providers.ClaudeCodeProvider, state.provider_override)
     end)
 
-    it(
-      "uses OpenCodeProvider default model when no provider or model specified",
-      function()
-        local _99 = require("99")
+    it("defaults to the claude backend when nothing is specified", function()
+      local _99 = require("99")
 
-        _99.setup({})
-        local state = _99.__get_state()
-        eq("opencode/claude-sonnet-4-5", state.model)
-      end
-    )
+      _99.setup({})
+      local state = _99.__get_state()
+      eq("claude", state.backend)
+      eq(Providers.ClaudeSdkProvider, state.provider_override)
+      eq(Providers.ClaudeSdkProvider, _99.get_provider())
+      eq("sonnet", state.model)
+    end)
 
     it(
       "uses ClaudeCodeProvider default model when provider specified but no model",
@@ -249,6 +249,102 @@ describe("providers", function()
       })
       local state = _99.__get_state()
       eq("custom-model", state.model)
+    end)
+  end)
+
+  describe("backend option", function()
+    it("resolves backend = claude to ClaudeSdkProvider", function()
+      local _99 = require("99")
+      _99.setup({ backend = "claude" })
+      eq(Providers.ClaudeSdkProvider, _99.get_provider())
+      eq("claude", _99.get_backend())
+      eq("sonnet", _99.get_model())
+    end)
+
+    it("resolves backend = opencode to the opencode CLI provider", function()
+      local _99 = require("99")
+      _99.setup({ backend = "opencode" })
+      eq(Providers.OpenCodeProvider, _99.get_provider())
+      eq("opencode", _99.get_backend())
+      eq("opencode/claude-sonnet-4-5", _99.get_model())
+    end)
+
+    it("resolves backend = opencode-sdk to OpenCodeSdkProvider", function()
+      local _99 = require("99")
+      _99.setup({ backend = "opencode-sdk" })
+      eq(Providers.OpenCodeSdkProvider, _99.get_provider())
+      eq("opencode/claude-sonnet-4-5", _99.get_model())
+    end)
+
+    it("lets an explicit provider win over backend", function()
+      local _99 = require("99")
+      _99.setup({
+        backend = "opencode",
+        provider = Providers.CursorSdkProvider,
+      })
+      eq(Providers.CursorSdkProvider, _99.get_provider())
+      eq(nil, _99.get_backend())
+      eq("composer-2.5", _99.get_model())
+    end)
+
+    it("keeps an explicit model over the backend default", function()
+      local _99 = require("99")
+      _99.setup({ backend = "claude", model = "opus" })
+      eq("opus", _99.get_model())
+    end)
+
+    it("errors on an unknown backend", function()
+      local _99 = require("99")
+      local ok, err = pcall(_99.setup, { backend = "nope" })
+      eq(false, ok)
+      assert.matches("unknown backend", err)
+    end)
+
+    it("switches backend at runtime and resets the model", function()
+      local _99 = require("99")
+      _99.setup({ backend = "claude" })
+      _99.set_backend("opencode")
+      eq(Providers.OpenCodeProvider, _99.get_provider())
+      eq("opencode", _99.get_backend())
+      eq("opencode/claude-sonnet-4-5", _99.get_model())
+    end)
+
+    it("clears the backend name when a provider is picked", function()
+      local _99 = require("99")
+      _99.setup({ backend = "claude" })
+      _99.set_provider(Providers.ClaudeCodeProvider)
+      eq(nil, _99.get_backend())
+      eq("claude-sonnet-4-5", _99.get_model())
+    end)
+
+    it("model picker lists models for the active backend", function()
+      local _99 = require("99")
+      local pickers = require("99.extensions.pickers")
+      _99.setup({ backend = "claude" })
+
+      local original = Providers.ClaudeSdkProvider.fetch_models
+      Providers.ClaudeSdkProvider.fetch_models = function(cb)
+        cb({ "sonnet", "opus" }, nil)
+      end
+      local got_models, got_current
+      pickers.get_models(nil, function(models, current)
+        got_models = models
+        got_current = current
+      end)
+      Providers.ClaudeSdkProvider.fetch_models = original
+
+      eq({ "sonnet", "opus" }, got_models)
+      eq("sonnet", got_current)
+    end)
+
+    it("provider picker reports the backend's provider as current", function()
+      local _99 = require("99")
+      local pickers = require("99.extensions.pickers")
+      _99.setup({ backend = "claude" })
+      local info = pickers.get_providers()
+      eq("ClaudeSdkProvider", info.current)
+      assert.is_true(vim.tbl_contains(info.names, "ClaudeSdkProvider"))
+      assert.is_true(vim.tbl_contains(info.names, "OpenCodeProvider"))
     end)
   end)
 

@@ -130,9 +130,51 @@ async function testHangTeardown() {
   }
 }
 
+async function testListModels() {
+  const ok = spawn(process.execPath, [runner, "--provider", "fake", "--list-models"], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const res = await waitForExit(ok);
+  if (res.code !== 0 || res.stdout !== "fake-model-a\nfake-model-b\n") {
+    fail(1, `unexpected --list-models output: ${res.code} ${JSON.stringify(res.stdout)} ${res.stderr}`);
+  }
+
+  const unsupported = spawn(
+    process.execPath,
+    [runner, "--provider", "opencode", "--list-models"],
+    { stdio: ["ignore", "pipe", "pipe"] },
+  );
+  const bad = await waitForExit(unsupported);
+  if (bad.code !== 1 || !bad.stderr.includes("not supported")) {
+    fail(1, `expected unsupported --list-models to fail: ${bad.code} ${bad.stderr}`);
+  }
+}
+
+async function testMissingProvider() {
+  const proc = spawn(process.execPath, [runner], { stdio: ["ignore", "pipe", "pipe"] });
+  const res = await waitForExit(proc);
+  if (res.code !== 1 || !res.stderr.includes("--provider")) {
+    fail(1, `expected missing --provider to fail: ${res.code} ${res.stderr}`);
+  }
+}
+
+async function testInvalidRequest() {
+  const proc = spawn(process.execPath, [runner, "--provider", "fake"], {
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  proc.stdin.write('{"model": 1}\n');
+  const res = await waitForExit(proc);
+  if (res.code !== 1 || !res.stderr.includes("invalid request json")) {
+    fail(1, `expected invalid request to fail: ${res.code} ${res.stderr}`);
+  }
+}
+
 async function main() {
   await testFakeProvider();
   await testHangTeardown();
+  await testListModels();
+  await testMissingProvider();
+  await testInvalidRequest();
   console.log("smoke tests passed");
 }
 

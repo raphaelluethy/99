@@ -55,7 +55,13 @@ end
 --- In-flight status window; see `_99.StatusWindow.Opts` and the Status window
 --- section in the README.
 --- @field md_files? string[]
+--- @field backend? _99.Backend
+--- Which agent backend to use: "claude" (default, ClaudeSdkProvider via the
+--- Claude Agent SDK), "opencode" (OpenCodeProvider, the opencode CLI) or
+--- "opencode-sdk" (OpenCodeSdkProvider, opencode 1.x only). Ignored when
+--- `provider` is set.
 --- @field provider? _99.Providers.BaseProvider
+--- Explicit provider; takes precedence over `backend`.
 --- @field provider_extra_args? string[]
 --- @field sdk? _99.Sdk.Options
 --- SDK runner install options; required when using SDK providers.
@@ -92,7 +98,8 @@ local _99_state
 ---             local cwd = vim.uv.cwd()
 ---             local basename = vim.fs.basename(cwd)
 --- 			_99.setup({
----                 -- provider = _99.Providers.ClaudeCodeProvider,  -- default: OpenCodeProvider
+---                 -- backend = "claude",  -- default; or "opencode" / "opencode-sdk"
+---                 -- provider = _99.Providers.ClaudeCodeProvider,  -- explicit provider wins over backend
 --- 				logger = {
 --- 					level = _99.DEBUG,
 --- 					path = "/tmp/" .. basename .. ".99.debug",
@@ -196,7 +203,7 @@ local _99_state
 --- Performs a search across your project with the prompt you provide and return out a list of
 --- locations with notes that will be put into your quick fix list.
 --- @field vibe fun(opts?: _99.ops.Opts): _99.TraceID | nil
---- will ask opencode or whatever provider currently being used to perform a vibe
+--- will ask the configured backend (Claude by default) to perform a vibe
 --- session.
 --- @field open fun(): nil
 --- Opens a selection window for you to select the last interaction to open
@@ -216,7 +223,7 @@ local _99_state
 --- get to see the logs.
 --- @field stop_all_requests fun(): nil
 --- stops all in flight requests.  this means that the underlying process will
---- be killed (OpenCode) and any result will be discared
+--- be killed (CLI or sdk-runner) and any result will be discarded
 --- @field clear_previous_requests fun(): nil
 --- clears all previous search and visual operations
 --- @field Extensions _99.Extensions
@@ -420,6 +427,15 @@ end
 function _99.setup(opts)
   opts = opts or {}
 
+  if opts.backend ~= nil then
+    assert(
+      type(opts.backend) == "string",
+      "opts.backend must be a string (one of: "
+        .. table.concat(Providers.backend_names(), ", ")
+        .. ")"
+    )
+  end
+
   _99_state = State.new(opts)
 
   local crules = _99_state.completion.custom_rules
@@ -442,7 +458,7 @@ function _99.setup(opts)
     assert(type(opts.model) == "string", "opts.model is not a string")
     _99_state.model = opts.model
   else
-    local provider = opts.provider or Providers.OpenCodeProvider
+    local provider = _99.get_provider()
     if provider._get_default_model then
       _99_state.model = provider._get_default_model()
     end
@@ -509,13 +525,30 @@ end
 
 --- @return _99.Providers.BaseProvider
 function _99.get_provider()
-  return _99_state.provider_override or Providers.OpenCodeProvider
+  return _99_state.provider_override or Providers.resolve_backend(nil)
+end
+
+--- @return _99.Backend | nil nil when a provider was picked explicitly
+function _99.get_backend()
+  return _99_state.backend
+end
+
+--- Switch backend at runtime ("claude", "opencode", "opencode-sdk").
+--- Resets the model to that backend's default, like set_provider.
+--- @param name _99.Backend
+--- @return _99
+function _99.set_backend(name)
+  local provider = Providers.resolve_backend(name)
+  _99.set_provider(provider)
+  _99_state.backend = name
+  return _99
 end
 
 --- @param provider _99.Providers.BaseProvider
 --- @return _99
 function _99.set_provider(provider)
   _99_state.provider_override = provider
+  _99_state.backend = nil
   if provider._get_default_model then
     _99_state.model = provider._get_default_model()
   end

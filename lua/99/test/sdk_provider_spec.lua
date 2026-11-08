@@ -114,6 +114,48 @@ describe("sdk providers", function()
     end
   )
 
+  it("does not spawn the runner when cancelled during install", function()
+    local _99 = require("99")
+    local provider = stub_provider(
+      '{"type":"complete","status":"success","result":"should not run"}\n'
+    )
+    local pending_ready = nil
+    function provider._ensure_ready(_, _, cb)
+      pending_ready = cb
+    end
+    local built = false
+    local original_build = provider._build_command
+    function provider._build_command(...)
+      built = true
+      return original_build(...)
+    end
+
+    _99.setup(
+      test_utils.get_test_setup_options(
+        { sdk = { auto_install = false } },
+        provider
+      )
+    )
+    test_utils.create_file({ "local value = 99" }, "lua", 1, 0)
+    local context = Prompt.search(_99.__get_state())
+    local status = nil
+    context:start_request({
+      on_start = function() end,
+      on_complete = function(s)
+        status = s
+      end,
+      on_stdout = function() end,
+      on_stderr = function() end,
+    })
+
+    context:cancel()
+    assert(pending_ready, "ensure_ready was not called")
+    pending_ready(true)
+
+    eq("cancelled", status)
+    eq(false, built)
+  end)
+
   it("maps failed complete events to on_complete failed", function()
     local ndjson = '{"type":"complete","status":"failed","result":"boom"}\n'
 
@@ -147,7 +189,31 @@ describe("sdk providers", function()
 
   describe("ClaudeSdkProvider", function()
     it("has the expected default model", function()
-      eq("claude-sonnet-4-5", Providers.ClaudeSdkProvider._get_default_model())
+      eq("sonnet", Providers.ClaudeSdkProvider._get_default_model())
+    end)
+
+    it("builds the claude sdk-runner command", function()
+      local cmd = Providers.ClaudeSdkProvider._build_command(
+        Providers.ClaudeSdkProvider,
+        "q",
+        { model = "sonnet" }
+      )
+      eq("node", cmd[1])
+      assert.matches("runner%.mjs$", cmd[2])
+      eq({ "--provider", "claude" }, { cmd[3], cmd[4] })
+    end)
+
+    it("falls back to model aliases when the runner is unavailable", function()
+      local original = Sdk.is_installed
+      Sdk.is_installed = function()
+        return false
+      end
+      local got
+      Providers.ClaudeSdkProvider.fetch_models(function(models)
+        got = models
+      end)
+      Sdk.is_installed = original
+      eq({ "sonnet", "opus", "haiku", "default" }, got)
     end)
 
     it("exposes make_request", function()

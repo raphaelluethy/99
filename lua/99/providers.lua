@@ -50,6 +50,16 @@ local CLAUDE_MODELS = {
   "claude-3-7-sonnet-latest",
 }
 
+-- Aliases the Claude Agent SDK always accepts; used when the runner cannot
+-- list models (not installed yet, node missing, ...). "default" means "let
+-- Claude Code pick", which the runner maps to no explicit model.
+local CLAUDE_SDK_MODEL_ALIASES = {
+  "sonnet",
+  "opus",
+  "haiku",
+  "default",
+}
+
 --- @param callback fun(models: string[]|nil, err: string|nil): nil
 local function fetch_opencode_models(callback)
   vim.system({ "opencode", "models" }, { text = true }, function(obj)
@@ -317,6 +327,11 @@ function SdkProvider:make_request(query, context, observer)
   end
 
   self:_ensure_ready(context, function(ok, err)
+    -- the request may have been stopped while npm install was running
+    if context:is_cancelled() then
+      once_complete("cancelled", "")
+      return
+    end
     if not ok then
       once_complete("failed", err or "sdk runner not ready")
       return
@@ -613,11 +628,35 @@ function ClaudeSdkProvider._get_provider_name()
 end
 
 function ClaudeSdkProvider._get_default_model()
-  return "claude-sonnet-4-5"
+  return "sonnet"
 end
 
+--- Asks the bundled Claude Code (via sdk-runner) for the models it accepts.
+--- This does not send a prompt, so it costs no tokens. Falls back to the
+--- static alias list when the runner is unavailable.
 function ClaudeSdkProvider.fetch_models(callback)
-  callback(CLAUDE_MODELS, nil)
+  if not Sdk.node_available() or not Sdk.is_installed() then
+    callback(vim.deepcopy(CLAUDE_SDK_MODEL_ALIASES), nil)
+    return
+  end
+
+  vim.system({
+    "node",
+    Sdk.runner_script(),
+    "--provider",
+    "claude",
+    "--list-models",
+  }, { text = true, timeout = 30000 }, function(obj)
+    vim.schedule(function()
+      local models = obj.code == 0
+          and vim.split(obj.stdout or "", "\n", { trimempty = true })
+        or {}
+      if #models == 0 then
+        models = vim.deepcopy(CLAUDE_SDK_MODEL_ALIASES)
+      end
+      callback(models, nil)
+    end)
+  end)
 end
 
 --- @class CursorSdkProvider : _99.Providers.SdkProvider
@@ -678,7 +717,52 @@ function OpenCodeSdkProvider.fetch_models(callback)
   fetch_opencode_models(callback)
 end
 
+--- @alias _99.Backend "claude" | "opencode" | "opencode-sdk"
+
+--- Backend names accepted by `setup({ backend = ... })`.
+--- * claude       -> ClaudeSdkProvider (Claude Agent SDK via sdk-runner)
+--- * opencode     -> OpenCodeProvider (the `opencode run` CLI; works with
+---                   opencode 1.x and 2.x)
+--- * opencode-sdk -> OpenCodeSdkProvider (`@opencode-ai/sdk`; opencode 1.x
+---                   only, the SDK cannot talk to the opencode 2.x server)
+--- @type table<_99.Backend, _99.Providers.BaseProvider>
+local BACKENDS = {
+  claude = ClaudeSdkProvider,
+  opencode = OpenCodeProvider,
+  ["opencode-sdk"] = OpenCodeSdkProvider,
+}
+
+local DEFAULT_BACKEND = "claude"
+
+--- @return string[]
+local function backend_names()
+  local names = vim.tbl_keys(BACKENDS)
+  table.sort(names)
+  return names
+end
+
+--- @param name _99.Backend | nil defaults to "claude"
+--- @return _99.Providers.BaseProvider
+local function resolve_backend(name)
+  name = name or DEFAULT_BACKEND
+  local provider = type(name) == "string" and BACKENDS[name] or nil
+  if not provider then
+    error(
+      string.format(
+        "99: unknown backend %s (expected one of: %s)",
+        vim.inspect(name),
+        table.concat(backend_names(), ", ")
+      ),
+      2
+    )
+  end
+  return provider
+end
+
 return {
+  DEFAULT_BACKEND = DEFAULT_BACKEND,
+  resolve_backend = resolve_backend,
+  backend_names = backend_names,
   BaseProvider = BaseProvider,
   SdkProvider = SdkProvider,
   OpenCodeProvider = OpenCodeProvider,
